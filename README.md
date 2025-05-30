@@ -21,9 +21,7 @@ Uses Levenshtein distance (via stringdist::stringdist) to find the closest match
 
 This is applied via sapply() to each of the map name columns: Map1, Map2, and Choice.
 
-r
-Copy
-Edit
+
 # Example usage:
 votesDF <- votesDF %>%
   mutate(
@@ -48,9 +46,7 @@ By standardizing map names upfront, we ensure accurate filtering, counting, and 
 
 To ensure a clean dataset, we remove any rows where one or more of the columns Map1, Map2, or Choice is missing or empty. This guarantees we're only analyzing complete vote records.
 
-r
-Copy
-Edit
+
 votesDFFiltered <- votesDF %>%
   filter(
     !is.na(Map1) & Map1 != "",
@@ -70,9 +66,7 @@ Missing or malformed data can skew results. This step ensures that only complete
 
 This step determines how many times each map wins a vote.
 
-r
-Copy
-Edit
+
 winCounts <- votesDFFilteredWithTies %>%
   mutate(winningMap = case_when(
     isTie ~ Map1,    # Treat ties as wins for Map1
@@ -99,9 +93,7 @@ This helps rank maps based on how often they win, either by actual votes or due 
 
 We visualize the win probability of each map when it's shown as a voting option. This includes both wins by majority vote and ties (when Map1 is chosen by default).
 
-r
-Copy
-Edit
+
 ggplot(winProb, aes(x = reorder(Map, WinProbability), y = WinProbability)) +
   geom_bar(stat = "identity", fill = "purple") +
   coord_flip()
