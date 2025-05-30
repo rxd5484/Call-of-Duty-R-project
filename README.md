@@ -270,6 +270,102 @@ This chart reveals not just correlations, but model-backed expected outcomes. It
 The answer? Domination, hands down.
 
 
+<img width="894" alt="Screenshot 2025-05-30 at 5 31 00 PM" src="https://github.com/user-attachments/assets/d0ee0b2d-2a78-4767-9f22-86892e2af106" />
+
+
+Model Comparison – ROC AUC Scores
+
+This boxplot compares the ROC AUC (Receiver Operating Characteristic Area Under Curve) scores of three machine learning models: XGBoost, Random Forest, and Logistic Regression.
+
+Key Observations:
+XGBoost shows the strongest overall performance. It has the highest median ROC score and relatively tight variability, indicating consistently strong classification ability across folds or runs.
+
+Random Forest performs well, though not as consistently. Its ROC scores vary more, with a wider interquartile range, but its upper performance is competitive with XGBoost.
+
+Logistic Regression has the lowest median ROC score, and a narrow range, meaning it performs consistently but less effectively than the other models in this setup.
+
+Summary:
+This comparison suggests that XGBoost is the best choice in terms of classification accuracy for this task, followed by Random Forest, while Logistic Regression underperforms in comparison.
+
+
+
+<img width="983" alt="Screenshot 2025-05-30 at 5 31 10 PM" src="https://github.com/user-attachments/assets/c594958f-823a-4ded-85cf-51dd09a595ae" />
+
+ROC Curve – Random Forest vs. Logistic Regression
+
+This plot displays the ROC curve (Receiver Operating Characteristic) for the Random Forest classifier. It shows the tradeoff between the true positive rate (sensitivity) and the false positive rate at various classification thresholds.
+
+Key Points:
+The solid blue line is the Random Forest's ROC curve.
+
+The dashed diagonal line represents random guessing (baseline performance).
+
+The closer the curve is to the top-left corner, the better the model is at distinguishing between classes.
+
+Performance Summary:
+Random Forest demonstrates moderate performance, with the ROC curve staying above the diagonal for most of its range.
+
+Logistic Regression (not shown in the plot but noted below) has an AUC of 0.4417, which is below random guessing (AUC < 0.5), suggesting poor classification performance on this dataset.
+
+Conclusion:
+Random Forest performs significantly better than Logistic Regression in this classification task, based on the shape of the ROC curve and the implied area under the curve.
+
+
+
+<img width="1040" alt="Screenshot 2025-05-30 at 5 31 17 PM" src="https://github.com/user-attachments/assets/f3155f5d-50be-4592-96bd-a6b6d1a56dcf" />
+
+
+ROC Curve – Logistic Regression with XGBoost AUC Comparison
+
+This ROC curve shows the classification performance of the Logistic Regression model.
+
+What the Plot Shows:
+The blue curve represents the tradeoff between the true positive rate and the false positive rate at different threshold values.
+
+The dashed diagonal line indicates the performance of a random classifier. A model performing above this line is making useful predictions.
+
+In this case, the curve barely rises above the diagonal, reflecting relatively weak discriminatory ability.
+
+AUC Scores:
+Logistic Regression AUC is approximately 0.50, suggesting near-random performance.
+
+XGBoost, noted just below the plot, achieved an AUC of 0.6478, which is a substantial improvement.
+
+Interpretation:
+Logistic Regression performs poorly on this dataset when compared to more advanced models like XGBoost. The XGBoost model demonstrates better separation between classes, as evidenced by its higher AUC score.
+
+
+<img width="1027" alt="Screenshot 2025-05-30 at 5 31 25 PM" src="https://github.com/user-attachments/assets/e5a81b9d-0c36-4f5d-a4d9-d2d96ebd176a" />
+
+
+
+ROC Curve and Performance Metrics – XGBoost
+
+This plot shows the ROC curve for the XGBoost classifier, representing how well the model distinguishes between classes across all decision thresholds.
+
+ROC Curve Insights
+The curve lies well above the diagonal, indicating strong classification performance.
+
+Compared to the baseline (dashed line), XGBoost maintains a high true positive rate with a relatively low false positive rate.
+
+Classification Metrics Summary
+Model	Accuracy	Precision	Recall	F1 Score
+Logistic Regression	0.40	0.17	0.53	0.26
+Random Forest	0.63	0.26	0.47	0.33
+XGBoost	0.65	0.32	0.67	0.43
+
+Key Observations
+XGBoost outperforms both Random Forest and Logistic Regression across all major metrics: accuracy, precision, recall, and F1 score.
+
+It achieves the best balance between precision and recall, as reflected in the highest F1 score.
+
+The model is especially effective at minimizing false negatives while maintaining reasonable precision.
+
+Conclusion
+XGBoost is the most effective classifier in this analysis, offering both high predictive power and a strong tradeoff between sensitivity and precision.
+
+
+
 
 
 
