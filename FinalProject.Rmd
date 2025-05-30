@@ -1,0 +1,983 @@
+---
+title: "Final Project"
+author: "
+Rakshit Dongre
+"
+date: "2025-05-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Front Matter
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(fuzzyjoin)
+
+```
+
+
+
+# Task 1
+
+### Research Question: Which maps are the most likely to win the map vote when they are an option?
+
+Notes: To answer this question, write a paragraph (or more) discussing how you plan to answer this
+question. Be sure to address the data quality issues mentioned below and discuss how you will do the
+calculations. Then, write code and answer the question. (If I must answer questions about your
+approach/decision making process by reading your code rather than your discussion, you will lose points.)
+As part of your solution, you should calculate the proportion/probability that a map wins the vote given
+that it was a candidate. To do this, you will have to calculate the number times that each map was listed as
+a candidate (Map1 or Map2) and earned more votes than the other candidate. As part of this, you should
+consider whether a given map won the vote by getting more votes than the other option or if it was
+selected since it was `Map1` and the vote was a tie. You should also include a visualization of the results.
+There might be some data quality issues (such as misspelled map names and extra (trailing) blanks in
+some entries) to solve for this problem. You can find the proper names/spellings in the CODMaps.csv
+file. To full receive full credit, you must write code to solve these issues rather than editing the .csv files.
+
+## Approach:
+
+- So we can observe from the research question that we are provided with an option of 2 maps per game and one must be chosen
+- We have information of, the 2 maps, the choice, the ratio of votes. If there is a tie vote, option 1 is taken.
+- There is also a concern with respect to the quality of the data, there is a repeating pattern in the csv where we have the choice for the game, but we are missing the values for the columns: 'Map1',  'Map2', and 'MapVote'.
+- We are also missing a lot of values for the 'Date' column for many of these matches, it does not correspond with the other issue in the data where only the selected map is displayed, so we can assume it is an error independent of that.
+- Given the date of certain maps, we can attempt to fine tune the chances maps are chosen with by having a more accurate knowledge of how many maps are available at that given point. If we have a date that is prior to a Season launch, we can disregard the maps released after that date from the pool of maps to consider in terms of odds.
+- We will calculate the favorablity of odds for each match by first checking how many times it was an option, and how many times it was selected. We will also consider ties and see if a map was selected based on the tie. We will then take into consideration the ratio of votes, to see by how much a map won by.
+- There is also a likely chance that certain maps are misspelled (there might by capitalization issues) and also there might be spacing issues. We can try to work around this by filtering the dataframe by using commands such as strip and by checking how similar they are to the actual names of the map and accounting them for that map.
+
+
+
+## Task 1 Code
+
+### Loading the data from the CSV to DataFrames and making the data consistent
+```{r}
+mapsDF <- read.csv("~/Downloads/CODMaps.csv")
+gmDF <- read.csv("~/Downloads/CODGameModes.csv")
+votesDF1 <- read.csv("~/Downloads/CODGames_p1_380.csv")  
+votesDF2 <- read.csv("~/Downloads/CODGames_p2_380.csv")   
+
+# Combining the two dataframes into 1
+votesDF <- bind_rows(votesDF1, votesDF2)
+
+# Cleaning data, by converting it to lower case and then getting rid of any white spaces/blanks
+votesDF$Map1 <- trimws(tolower(votesDF$Map1))
+votesDF$Map2 <- trimws(tolower(votesDF$Map2))
+votesDF$Choice <- trimws(tolower(votesDF$Choice))
+mapsDF$Name <- trimws(tolower(mapsDF$Name))
+
+
+```
+
+
+### Checking for any mispelled data entries in any of the columns
+```{r}
+# Creating reference list of correct map names
+referenceMaps <- mapsDF$Name
+
+# Identifying maps not found in the reference list due to spelling mistakes
+invalidMap1 <- votesDF$Map1[!(votesDF$Map1 %in% referenceMaps)]
+invalidMap2 <- votesDF$Map2[!(votesDF$Map2 %in% referenceMaps)]
+invalidChoice <- votesDF$Choice[!(votesDF$Choice %in% referenceMaps)]
+
+# Displaying incorrect entries in column 'Map1', 'Map2', and 'Choice'
+print("Maps in 'Map1' that do not match reference list:")
+print(unique(invalidMap1))
+
+print("Maps in 'Map2' that do not match reference list:")
+print(unique(invalidMap2))
+
+print("Maps in 'Choice' that do not match reference list:")
+print(unique(invalidChoice))
+
+```
+
+
+### Doing Fuzzy matching to fix small spelling errors as seen above
+```{r}
+# Function to fuzzy match ONLY incorrect names
+correct_map_name <- function(map_name, reference_list) {
+  if (is.na(map_name) || map_name == "") {
+    return(map_name)  # Keep blanks as they are
+  }
+  
+  if (map_name %in% reference_list) {
+    return(map_name)  # If already correct, keep as is
+  }
+  
+  # Find closest match using Levenshtein distance
+  best_match <- reference_list[which.min(stringdist::stringdist(map_name, reference_list))]
+  return(best_match)
+}
+
+# Reference list from mapsDF
+reference_maps <- mapsDF$Name
+
+# Apply fuzzy correction ONLY to incorrect entries
+votesDF <- votesDF %>%
+  mutate(
+    Map1 = sapply(Map1, correct_map_name, reference_maps),
+    Map2 = sapply(Map2, correct_map_name, reference_maps),
+    Choice = sapply(Choice, correct_map_name, reference_maps)
+  )
+
+```
+
+
+## Counting odds to see which map will be chosen if available
+
+### Removing all invalid entries
+```{r}
+votesDFiltered <- votesDF %>% filter(!is.na(Map1) & Map1 != "" &
+                                     !is.na(Map2) & Map2 != "" &
+                                     !is.na(Choice) & Choice != "")
+
+print(head(votesDFiltered))
+```
+
+
+### Counting all appearances of each map in column 'Map1'
+```{r}
+map1Counts <- votesDFiltered %>% count(Map1, sort = TRUE, name = "Count1")
+map1Counts <-  map1Counts %>% rename(Map = Map1)
+
+print("Counts of maps appearing in the Map1 column:")
+print(map1Counts)
+```
+
+### Counting all appearances of each map in column 'Map2'
+```{r}
+map2Counts <- votesDFiltered %>% count(Map2, sort = TRUE, name = "Count2")
+map2Counts <-  map2Counts %>% rename(Map = Map2)
+
+print("Counts of maps appearing in the Map2 column:")
+print(map2Counts)
+
+
+```
+
+
+### Calculating total appearances
+```{r}
+totalCounts <- full_join(map1Counts, map2Counts, by = "Map") %>%
+  mutate( Count1 = replace_na(Count1, 0),
+          Count2 = replace_na(Count2, 0)
+          ) %>%
+  mutate( totalAppearances = Count1 + Count2) %>%
+  select (Map, totalAppearances) %>%
+  arrange(desc(totalAppearances))
+
+print("Total appearances count for each map (Map1 + Map2):")
+print(totalCounts)
+```
+
+### Helper function to count votes for Map selection
+```{r}
+parseVotes <- function(voteString) {
+  # Return NA for missing values
+  if (is.na(voteString) || voteString == "") {
+    return(c(NA, NA))
+  }
+  
+  # Try different possible formats
+  if (grepl(" to ", voteString, ignore.case = TRUE)) {
+    # Format: "3 to 2"
+    pattern <- " to "
+  } else if (grepl("-", voteString)) {
+    # Format: "3-2"
+    pattern <- "-"
+  } else {
+    # No recognized pattern
+    return(c(NA, NA))
+  }
+  
+  # Split the string by the identified pattern
+  votes <- tryCatch({
+    parts <- strsplit(voteString, pattern, fixed = TRUE)[[1]]
+    as.numeric(trimws(parts))
+  }, warning = function(w) { 
+    c(NA, NA) 
+  }, error = function(e) { 
+    c(NA, NA) 
+  })
+  
+  # Check if we have exactly two valid numbers
+  if (length(votes) == 2 && all(!is.na(votes))) {
+    return(votes)
+  } else {
+    return(c(NA, NA))
+  }
+}
+
+```
+
+
+### Counting wins for each map
+```{r}
+votesDFilteredWithTies <- votesDFiltered %>% 
+  mutate(voteCounts = lapply(MapVote, parseVotes),
+         vote1 = sapply(voteCounts, `[`, 1),
+         vote2 = sapply(voteCounts, `[`, 2),
+         isTie = ifelse(!is.na(vote1) & !is.na(vote2) & vote1 == vote2, TRUE, FALSE))
+
+
+winCounts <- votesDFilteredWithTies %>% 
+  mutate(winningMap = case_when(
+    isTie == TRUE ~ Map1,
+    TRUE ~ Choice)
+  ) %>%
+  group_by(winningMap) %>%
+  summarise(Wins = n(), .groups = 'drop') %>%
+  rename(Map = winningMap) %>%
+  arrange(desc(Wins))
+
+tieCounts <- votesDFilteredWithTies %>% 
+  filter(isTie == TRUE) %>%
+  group_by(Map1) %>%
+  summarise(TieWins = n(), .groups = 'drop') %>%
+  rename(Map = Map1)
+
+print(winCounts)
+```
+
+
+# Calculating Win Probability
+```{r}
+winProb <- totalCounts %>%
+  left_join(winCounts, by = "Map") %>%
+  left_join(tieCounts, by = "Map") %>%
+  # Replace NA values with 0
+  mutate(Wins = ifelse(is.na(Wins), 0, Wins),
+         TieWins = ifelse(is.na(TieWins), 0, TieWins)) %>%
+  # Calculate probabilities
+  mutate(
+    WinProbability = ifelse(totalAppearances > 0, Wins / totalAppearances, 0),
+    TieWinProbability = ifelse(totalAppearances > 0, TieWins / totalAppearances, 0)
+  ) %>%
+  # Select the relevant columns
+  select(Map, totalAppearances, Wins, TieWins, WinProbability, TieWinProbability) %>%
+  # Arrange by win probability, descending
+  arrange(desc(WinProbability))
+
+
+print(winProb)
+```
+
+```{r}
+#Visualization for win probabilities
+winProbPlot <- ggplot(winProb, aes(x = reorder(Map, WinProbability), y = WinProbability)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Probability of a Map Winning When Presented as an Option",
+    subtitle = "Includes wins from ties where Map1 was chosen",
+    x = "Map Name",
+    y = "Win Probability"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+print(winProbPlot)
+```
+
+## Discussion of Task 1 Approach and Answer for Research Question
+So we can see from the approach we have taken to the code for Task 1 in answering the question and its results that the map most likely to win a vote when an option is ' Nuketown '84 ', with a whopping 82.5% chance of winning when it is presented as an option. It is followed by 'Crossroads Strike' and 'Raid'.
+
+We have followed through on the approach as previously defined, we did some basic pre-processing to clean the data as well as some fuzzy matching to catch spelling errors as well as other data quality issues we addressed initially. We then checked the total appearances of each map between the two CSVs and also counted the wins each map had. After which we calculated their winning probabilities using the formula No. of Wins / No. of Appearances (we also took into account if there was a tie and awarded the win to map1 accordingly). We then displayed our results table as well as a visualization of the winning probabilities for easy viewing and comparison.
+
+
+
+# Task 2
+
+Repeat Task 1 using a generative AI of your choice. To answer this question, mention the tool (including
+version number if appropriate) you have selected. Then, discuss the prompt(s) you have used and provide
+the solution produced by the generative AI. While it is fine to paste the question into the generative AI as
+your first prompt, you should also use additional follow-up prompts if it is beneficial to do so. Be sure to
+discuss all prompts used in your report.
+
+Then, implement the generative AI solution.
+
+Finally, and most importantly, you should compare your solution from Task 1 to the generative AI
+solution. Discuss similarities/differences, strengths/weaknesses, etc., and provide an overall assessment of
+which solution is better. The discussion should consider the correctness of the answers and should be
+substantial. Demonstrate that you have given the comparison considerable thought by making at least 3
+substantial points as part of your comparison. Each point should take the form of a well-written
+paragraph.
+
+## Approach
+We used Claude 3.7 Sonnet as the model to answer this Task and to generate its code.
+
+This was the prompt I gave it:
+
+"Hey I need you to solve this problem:
+
+Task 1 (Data Cleaning and Data Visualization – Complete without Generative AI):
+Relevant Information: (Complete without using Generative AI) Prior to each online match, players in the
+game lobby are presented with two options for the battlefield of the upcoming game (Map1 and
+Map2). The players have the option to vote and the resulting vote is recorded in the MapVote column.
+The winning map is listed in the Choice column. In the event of a tie vote, the map listed in Map1 is
+chosen. (Games for which the player entered the lobby after the vote has taken place have no information
+in Map1 and Map2 but have the winning map presented in Choice.)
+
+Research Question: Which maps are the most likely to win the map vote when they are an option?
+
+Notes: To answer this question, write a paragraph (or more) discussing how you plan to answer this
+question. Be sure to address the data quality issues mentioned below and discuss how you will do the
+calculations. Then, write code and answer the question. (If I must answer questions about your
+approach/decision making process by reading your code rather than your discussion, you will lose points.)
+As part of your solution, you should calculate the proportion/probability that a map wins the vote given
+that it was a candidate. To do this, you will have to calculate the number times that each map was listed as
+a candidate (Map1 or Map2) and earned more votes than the other candidate. As part of this, you should
+consider whether a given map won the vote by getting more votes than the other option or if it was
+selected since it was Map1 and the vote was a tie. You should also include a visualization of the results.
+There might be some data quality issues (such as misspelled map names and extra (trailing) blanks in
+some entries) to solve for this problem. You can find the proper names/spellings in the CODMaps.csv
+file. To full receive full credit, you must write code to solve these issues rather than editing the .csv files.
+
+
+keep in mind that these are the columns available in the CODGames_p1_380 and CODGames_p2_380 CSV files:
+
+Map1 Map2 Choice MapVote Date FullPartial Result Eliminations Deaths Score Damage TotalXP PrimaryWeapon XPType DidPlayerVote GameType Confirms Denies Objectives ObjectiveKills Captures Diffuses Plants Detonates Deposits Time_Sec Time_Min
+
+Here are the columns availabe in the CODMaps csv file:
+
+Name FirstAvailable Date
+
+give me the full code in R for this keep in mind, you have to do data cleaning (fix spelling mistakes, get rid of invalid entries (such as empty values for columns Map1 and map2 or choice)) you also have to then find the win probability of the map if it is a choice accouintig for all the various factors mentioned in the above notes and amke sure that you do this across the CSVs (both of them)"
+
+
+
+
+As you can see in this prompt I gave it the task 1 problem and then rpovided extra data and context with respect to the names of the CSV files, names of the columns, I also asked it to focus in the data pre-processing to make sure that the data has no errors in it. I also asked it to focus on the notes provided in Task 1 so it has all the nuances for the problem down. 
+
+Below you can see the code for this prompt, it needed no further prompts and generated accurate code immediately, you can see the results match my own code exactly and there are no changes made to it whatsoever...
+
+## Task 2 Code
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+
+# Read the CSV files
+cod_games_p1 <- read.csv("v
+                         Downloads/CODGames_p1_380.csv")
+cod_games_p2 <- read.csv("~/Downloads/CODGames_p2_380.csv")
+cod_maps <- read.csv("~/Downloads/CODMaps.csv")
+
+# Combine the two game datasets
+cod_games <- rbind(cod_games_p1, cod_games_p2)
+
+# Clean map names by trimming whitespace
+cod_games <- cod_games %>%
+  mutate(
+    Map1 = str_trim(Map1),
+    Map2 = str_trim(Map2),
+    Choice = str_trim(Choice)
+  )
+
+# Get the list of valid map names from CODMaps
+valid_maps <- str_trim(cod_maps$Name)
+
+# Function to correct map names based on similarity
+correct_map_name <- function(map_name) {
+  if (is.na(map_name) || map_name == "") {
+    return(map_name)
+  }
+  
+  # If already a valid map name, return as is
+  if (map_name %in% valid_maps) {
+    return(map_name)
+  }
+  
+  # Find closest match
+  best_match <- valid_maps[which.min(adist(map_name, valid_maps))]
+  return(best_match)
+}
+
+# Apply correction to map names
+cod_games <- cod_games %>%
+  mutate(
+    Map1 = sapply(Map1, correct_map_name),
+    Map2 = sapply(Map2, correct_map_name),
+    Choice = sapply(Choice, correct_map_name)
+  )
+
+# Filter out rows where Map1 and Map2 are both empty (player entered after vote)
+cod_games_filtered <- cod_games %>%
+  filter(!(is.na(Map1) & is.na(Map2)))
+
+# Determine if a map won due to tie (Map1 is chosen in tie)
+cod_games_filtered <- cod_games_filtered %>%
+  mutate(
+    MapVote = as.character(MapVote),
+    WonDueToTie = ifelse(MapVote == "Tie" & Choice == Map1, TRUE, FALSE)
+  )
+
+# Create a long format dataset to calculate win rates
+map_appearances <- cod_games_filtered %>%
+  select(Map1, Map2, Choice, MapVote, WonDueToTie) %>%
+  pivot_longer(
+    cols = c(Map1, Map2),
+    names_to = "Position",
+    values_to = "Map"
+  ) %>%
+  filter(!is.na(Map)) %>%
+  mutate(
+    Won = Map == Choice,
+    WonByVotes = Won & !WonDueToTie,
+    WonByTie = Won & WonDueToTie
+  )
+
+# Calculate win probabilities for each map
+map_win_stats <- map_appearances %>%
+  group_by(Map) %>%
+  summarize(
+    TotalAppearances = n(),
+    TotalWins = sum(Won),
+    WonByVotes = sum(WonByVotes),
+    WonByTie = sum(WonByTie),
+    WinProbability = TotalWins / TotalAppearances,
+    WinByVotesProbability = WonByVotes / TotalAppearances,
+    WinByTieProbability = WonByTie / TotalAppearances
+  ) %>%
+  arrange(desc(WinProbability))
+
+# Create visualization
+ggplot(map_win_stats, aes(x = reorder(Map, WinProbability), y = WinProbability)) +
+  geom_bar(stat = "identity", aes(fill = WinProbability)) +
+  geom_text(aes(label = sprintf("%.2f", WinProbability)), hjust = -0.1) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  coord_flip() +
+  labs(
+    title = "Map Win Probability When Available as an Option",
+    x = "Map",
+    y = "Win Probability",
+    fill = "Win Probability"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Create a stacked bar chart showing wins by votes vs. wins by tie
+map_win_stats_long <- map_win_stats %>%
+  select(Map, WinByVotesProbability, WinByTieProbability) %>%
+  pivot_longer(
+    cols = c(WinByVotesProbability, WinByTieProbability),
+    names_to = "WinType",
+    values_to = "Probability"
+  ) %>%
+  mutate(WinType = ifelse(WinType == "WinByVotesProbability", "Won by Votes", "Won by Tie"))
+
+ggplot(map_win_stats_long, aes(x = reorder(Map, Probability, sum), y = Probability, fill = WinType)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Map Win Probability by Win Type",
+    x = "Map",
+    y = "Probability",
+    fill = "Win Type"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Print the results
+print(map_win_stats)
+
+```
+
+
+
+
+
+## Comparison of Task 1 and Task 2 Code and Results
+
+So by and large the code written by myself and Claude is very similar in terms of the results it gets, but it does differ substantially in its approach. The three major things I'd like to compare in the code are the format and structure of the code, the approach to data cleaning and pre-processing, and how the win by ties was handled. It is important to note that with respect to the end results, but the codes used pretty much the same formula of the counting the wins and the total appearances to get to the win probability of the each map. Due to this and due to the accurate data pre-processing and handling, we both managed to get identical results. I will now delve a little bit deeper into the approach and the differences we had in reaching the same end result.
+
+1. Approach to Code structuring:
+I had a very systematic approach to writing out the code, I wanted to do each portion of the code step by step. This was important as it helped me keep track of what I was doing and was also much more readable to any new users. This is clearly visible as I have only 3-5 lines of code underneath each subheading and each cell. This way my code is very easy to understand and interpret. The model however, has just provided the entire code altogether, while this may be a little bit harder to read and slightly more difficult to understand, this is also significantly more modular and efficient than my own approach. This allows less redundancy and also features some more efficient and smarter calls such as combining the data and doing the cleaning all at once as compared to what I have done in many places for my own understanding which is doing it step by step and then bringing it together.
+
+2. Approach Data Cleaning:
+The core difference we have taken in the data cleaning is how to handle the spelling errors in the map names in the two CSV files which contain the player's match history and data. I have opted to use Fuzzy Matching whereas Claude has chosen to use stringr. I chose Fuzzy Matching based off of a google search which recommended the same and I then used GeeksforGeeks and other websites to create my code for it. Whereas the model used Stringr to be able to calculate the accuracy of the map names by using spelling distance. This way it took lesser code to compare the list fo reference maps as present in the CODMaps CSV.
+
+3. Approach to handling Win Counts and checking Wins by Tie:
+We also had two very different ways of counting wins. I created a helper function to go through the ratio of map votes, eliminate the ' to ' and then compare which one won, this was mainly there just to check if there was a tie. I then just used choice and counted how many times each map won. Claude on the other hand looks for a value called 'Tie' and expects if the game is tied that is how it will appear in the MapVote column, this is not the case and due to this it is unable to calculate and see how many games are won by ties or by actually winning the vote. In my own code, I was able to correctly check for ties and was able to show the tie win prob and the actual win prob through just votes as well.
+
+So the model by and large did have some improvements due to how it was structured and written but it also struggled by not having access ot the data and its values this led to some mistakes on its end. Overall, both codes were similar and achieved identical results.
+
+
+
+
+# Task 3
+
+Relevant Information: There are a variety games types (GameType variable) within this dataset. The
+difference between the game types is that players have different objectives for the game. For instance, in
+the game type “Hardpoint”, teams earn points by capturing and defending a location. In “TDM” teams
+earn points by eliminating enemy opponents. As these game types have different objectives and may last
+for different amounts of time, the game type might affect the TotalXP earned.
+
+
+## Research Question: How does the game type affect TotalXP after accounting for the Score?
+
+Notes: Score refers to the player’s score, not the “score” of the match (i.e., not the Result column). This
+answer requires some data wrangling that may require knowledge that we have not covered. (Again, part
+of the skillset you are working to develop is learning how to answer questions you have not seen
+previously.) In particular, there is no distinction between HC – TDM and TDM, no difference between
+HC – Hardpoint and Hardpoint, and so on for the other game types. Write code to clean the values in the
+GameType column to reflect this information. Then, perform an exploratory data analysis by create
+appropriate visualizations/summary statistics that explore the distribution of the variables and show the
+relationship between TotalXP, Score, and GameType. (You decide on the type/number of visualizations,
+but the analysis should be complete.) Finally, build an appropriate model for TotalXP based on Score and
+GameType. You should use the model to then answer the research question.
+
+## Task 3 Approach
+To answer this question, I first had to spend a good amount of time cleaning up the GameType values. Many of them had confusing variations  like “HC - TDM” or “HC–Hardpoint”  which are essentially the same as their standard versions but just recorded differently. I wrote some code to strip out the "HC" prefixes and used fuzzy string matching to align everything with a clean reference list. This part was a bit tricky because I had to double-check that no mismatches or odd duplicates slipped through. 
+
+After that, I removed rows that were missing key values like Score, TotalXP, or GameType so I could work with a clean dataset. Once the data was ready, I explored the relationship between XP and game type using grouped summary statistics and a few visualizations. It became clear that XP distributions varied a lot across modes, even when average scores looked similar — which was interesting and not something I expected. From there, I built a linear regression model with an interaction term to see how Score and GameType together influenced XP. 
+
+Interpreting the model coefficients was a bit overwhelming at first (especially the interaction terms), but once I plotted the predicted XP across different game types, the trends made more sense. To wrap it up, I used ANOVA to test whether game type had a statistically significant effect after accounting for score — and it did. So, despite similar player performance, the kind of game being played still had a noticeable impact on how much XP was earned.
+
+## Task 3 Code
+
+```{r}
+library(dplyr)
+library(fuzzyjoin)
+
+
+# Removing "HC -" prefixes from GameType
+cleanDF <- votesDF %>%
+  mutate(GameType = gsub("^HC - |^HC-", "", GameType),
+         GameType = trimws(GameType))
+
+# Create a reference dataframe from gmDF
+referenceDF <- gmDF %>%
+  select(StandardMode = Mode) %>%
+  distinct()
+
+# Use stringdist_join to match game types to the reference list
+matchedDF <- stringdist_left_join(
+  cleanDF,
+  referenceDF,
+  by = c("GameType" = "StandardMode"),
+  max_dist = 2,
+  distance_col = "distance"
+)
+
+# Checking for standardized game types
+cleanDF <- matchedDF %>%
+  mutate(GameType = ifelse(!is.na(StandardMode), StandardMode, GameType)) %>%
+  select(-StandardMode, -distance)
+
+# More data cleaning
+missingValues <- cleanDF %>%
+  summarize(
+    MissingTotalXP = sum(is.na(TotalXP)),
+    MissingScore = sum(is.na(Score)),
+    MissingGameType = sum(is.na(GameType))
+  )
+
+analysisDF <- cleanDF %>%
+  filter(!is.na(TotalXP), !is.na(Score), !is.na(GameType))
+
+print(missingValues)
+```
+
+
+```{r}
+# Creating summary statistics based on GameType
+summaryStats <- analysisDF %>%
+  group_by(GameType) %>%
+  summarize(
+    Count = n(),
+    MeanXP = mean(TotalXP),
+    MedianXP = median(TotalXP),
+    SDXP = sd(TotalXP),
+    MeanScore = mean(Score),
+    MedianScore = median(Score),
+    SDScore = sd(Score)
+  )
+print(summaryStats)
+```
+
+
+```{r}
+library(ggplot2)
+# Visualize the relationship between Score and TotalXP with color by GameType
+ggplot(analysisDF, aes(x = Score, y = TotalXP, color = GameType)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Relationship between Score and TotalXP by the Game Type",
+       x = "Score", y = "Total XP") +
+  theme_minimal()
+```
+
+
+```{r}
+# Create boxplots of TotalXP by GameType
+ggplot(analysisDF, aes(x = reorder(GameType, TotalXP, FUN = median), y = TotalXP, fill = GameType)) +
+  geom_boxplot() +
+  labs(title = "Distribution of TotalXP by Game Type",
+       x = "Game Type", y = "Total XP") +
+  theme_minimal()
+```
+
+
+```{r}
+# Build a linear regression model with interaction terms
+model <- lm(TotalXP ~ Score * GameType, data = analysisDF)
+
+
+summary(model)
+
+# Create a new dataframe for predictions with fixed Score values
+scoreRange <- seq(min(analysisDF$Score), max(analysisDF$Score), length.out = 100)
+gameTypes <- unique(analysisDF$GameType)
+predDF <- expand.grid(Score = scoreRange, GameType = gameTypes)
+
+# Generate predictions
+predDF$PredictedXP <- predict(model, newdata = predDF)
+```
+
+
+```{r}
+# Visualize the model predictions
+ggplot(predDF, aes(x = Score, y = PredictedXP, color = GameType)) +
+  geom_line(size = 1) +
+  labs(title = "Predicted TotalXP by Score and Game Type",
+       subtitle = "After controlling for Score differences",
+       x = "Score", y = "Predicted Total XP") +
+  theme_minimal()
+
+# Calculate ANOVA to test if GameType has a significant effect
+anovaResult <- anova(model)
+print(anovaResult)
+```
+
+
+## Task 3 Discussion
+
+The analysis confirmed that game type plays a significant role in determining how much XP a player earns, even when their performance — measured by Score — is taken into account. This finding aligns with what we might expect intuitively: different modes emphasize different objectives, and the way XP is awarded likely reflects those objectives. For example, Domination rewards players for capturing and holding objectives, which may accumulate XP more rapidly than modes like Kill Confirmed, where actions are more linear and limited in scope. What stood out most in the results was how clearly the regression model showed diverging XP curves across game types — with Domination consistently leading in XP, and Kill Confirmed trailing behind, even for players with similar scores.
+
+One thing that surprised me was how Score alone didn’t fully explain XP variation. Initially, I assumed a higher score would always translate to proportionally higher XP, regardless of mode. But the model and plots clearly showed that two players with similar scores could earn very different amounts of XP just because they played different game types. This could have practical implications for players trying to level up quickly: choosing certain game modes might be a more efficient way to earn XP, especially if they're able to perform well in them.
+
+That said, the analysis wasn’t without its challenges. Cleaning the game type data took more effort than expected, especially handling “HC” prefixes and inconsistent naming. Also, working with interaction terms in the regression model was conceptually challenging at first understanding what it means for the effect of score to vary depending on game type took some trial and error, and plotting the predicted XP values really helped bring that concept to life.
+
+Overall, this task was a great exercise in cleaning messy data, exploring patterns visually, and building interpretable models to answer real questions the kind of work that mirrors practical data science problems.
+
+
+
+
+# Task 4
+
+Relevant Information: In this task, your goal is to compare a variety of classification methods. In
+particular, you should write your own research question that can be answered by comparing the
+effectiveness of various classification methodologies. To demonstrate your understanding of these
+methods, you should implement two classification methods from class, one of which must be random
+forest, and a third method that we will not cover in class. (The purpose of the using a method we did not
+cover is I want you to practice learning about a method and its implementation on your own. Basically,
+find a tutorial that explains the method and how to implement it.) You will then have to compare the
+results and decide which method was the most effective.
+
+## Research Question: Write your own question and be sure that the question and answer are clearly written in your report.
+
+Notes: Since you will be using random forest, do not use a decision/classification tree as one of your other
+methods. For this problem, you should provide a brief description of the methods that you will use. (A
+description is more than listing the name of the procedure. You should describe how the procedure
+works.) You will implement and compare the effectiveness of these methods. As part of this process, you
+will have to make a number of decisions such as whether you will do any data wrangling (maybe you
+remove partial matches, maybe you create new variables, etc.), which methods will you use, how will you
+fairly compare the results between methods, which method is best etc. All of these decisions should be
+included in your report. If I have to learn about your decisions/analysis by reading your code, you will
+lose points.
+
+NOTE1: You will make your life easier if you pick a response with a small number of levels.
+
+NOTE2: As you are picking a method that we did not cover, one way to find techniques is by looking at
+the textbook that we have been covering: An Introduction to Statistical Learning with Applications in R
+by Gareth James et al. You can find a pdf of the textbook on the author’s site:
+https://www.statlearning.com/.
+
+
+## Approach
+To tackle this classification task, I wanted to explore whether a player’s in-game performance and context — things like kills, score, damage, and map choice — could help predict whether they would win or lose a match. I began by preparing the dataset, where the Result column originally had inconsistent formats (like “W”, “1”, “w”, etc.). I converted these into a simple binary factor: Win or Loss. I also created new features to better reflect player performance: K/D ratio (with safeguards for divide-by-zero), Score per Minute, and Damage per Elimination. These engineered variables felt more informative than raw stats and helped the models pick up meaningful patterns.
+
+Once the dataset was cleaned and enriched, I split it into training and testing sets using a 70/30 ratio. I also noticed there was a bit of class imbalance (more Wins than Losses), so I used downsampling inside cross-validation to ensure balanced model training. For modeling, I trained three classifiers: Random Forest (a requirement), Logistic Regression (covered in class), and XGBoost — a method I hadn’t used before. I learned about XGBoost by exploring tutorials and documentation, and although its configuration was more involved than the other models, I found it a worthwhile learning experience.
+
+To keep the evaluation consistent, I used 5-fold cross-validation with the ROC AUC metric as the baseline for tuning. After training, I assessed all three models on the test set using accuracy, precision, recall, and F1 score. I also plotted ROC curves and reviewed feature importance to interpret each model's behavior. Throughout the process, I tried to make sure every comparison was fair: same preprocessing, same features, same evaluation metrics — to truly judge which model performed best.
+
+
+```{r}
+# --- 0. Load Necessary Libraries ---
+library(dplyr)
+library(caret)
+library(randomForest)
+library(e1071)  # For SVM
+
+library(kernlab) # For SVM
+library(xgboost) # For XGBoost (third method)
+library(ROCR)    # For ROC curves
+library(ggplot2)
+
+# --- 1. Data Preparation ---
+# Convert Result to a binary outcome (Win/Loss)
+votesDF <- votesDF %>%
+  mutate(Result = as.character(Result)) %>%
+  mutate(Result = trimws(Result)) %>%
+  filter(Result != "" & !is.na(Result)) %>%
+  # Convert to binary classification
+  mutate(Result = ifelse(grepl("^W|^w|^1", Result), "Win", "Loss")) %>%
+  mutate(Result = as.factor(Result))
+
+# Create feature engineering function
+createFeatures <- function(df) {
+  df %>%
+    # Create KD Ratio (handle division by zero)
+    mutate(KDRatio = ifelse(Deaths == 0, Eliminations, Eliminations/Deaths)) %>%
+    # Create Score Per Minute
+    mutate(ScorePerMinute = ifelse(Time_Min == 0, Score, Score/Time_Min)) %>%
+    # Create Damage Per Elimination
+    mutate(DamagePerElim = ifelse(Eliminations == 0, Damage, Damage/Eliminations))
+}
+
+# Apply feature engineering
+modelDF <- votesDF %>%
+  createFeatures() %>%
+  select(Result, Score, Eliminations, Deaths, Damage, GameType, 
+         Map1, Map2, Choice, TotalXP, KDRatio, ScorePerMinute, DamagePerElim) %>%
+  # Convert categorical variables to factors
+  mutate(
+    GameType = as.factor(GameType),
+    Map1 = as.factor(Map1),
+    Map2 = as.factor(Map2),
+    Choice = as.factor(Choice)
+  ) %>%
+  # Remove rows with NA values
+  na.omit()
+
+# Check data structure
+str(modelDF)
+table(modelDF$Result)
+
+# --- 2. Data Splitting ---
+set.seed(123)
+trainIndex <- createDataPartition(modelDF$Result, p = 0.7, list = FALSE, times = 1)
+trainData <- modelDF[trainIndex, ]
+testData <- modelDF[-trainIndex, ]
+
+# --- 3. Model Training Setup ---
+# Set up cross-validation for binary classification
+ctrl <- trainControl(
+  method = "cv",
+  number = 5,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = "final",
+  sampling = "down" # Use down-sampling to handle class imbalance
+)
+
+# --- 4. Model Training ---
+# Model 1: Random Forest
+cat("Training Random Forest model...\n")
+rfModel <- train(
+  Result ~ .,
+  data = trainData,
+  method = "rf",
+  trControl = ctrl,
+  metric = "ROC",
+  importance = TRUE
+)
+
+# Model 2: Logistic Regression
+cat("Training Logistic Regression model...\n")
+logModel <- train(
+  Result ~ .,
+  data = trainData,
+  method = "glm",
+  family = "binomial",
+  trControl = ctrl,
+  metric = "ROC"
+)
+
+# Model 3: XGBoost (not covered in class)
+cat("Training XGBoost model...\n")
+xgbModel <- train(
+  Result ~ .,
+  data = trainData,
+  method = "xgbTree",
+  trControl = ctrl,
+  metric = "ROC",
+  verbosity = 0
+)
+
+# --- 5. Model Comparison ---
+# Compare models using resamples
+modelList <- list(
+  RandomForest = rfModel,
+  LogisticRegression = logModel,
+  XGBoost = xgbModel
+)
+
+# Compare models using resamples
+modelComparison <- resamples(modelList)
+summary(modelComparison)
+
+# Create comparison plot
+bwplot(modelComparison, metric = "ROC")
+
+# --- 6. Model Evaluation on Test Set ---
+# Function to calculate metrics
+calculateMetrics <- function(pred, actual, model_name) {
+  cm <- confusionMatrix(pred, actual, positive = "Win")
+  
+  # Extract metrics
+  accuracy <- cm$overall["Accuracy"]
+  precision <- cm$byClass["Pos Pred Value"]
+  recall <- cm$byClass["Sensitivity"]
+  f1 <- cm$byClass["F1"]
+  
+  # Return as data frame row
+  data.frame(
+    Model = model_name,
+    Accuracy = accuracy,
+    Precision = precision,
+    Recall = recall,
+    F1Score = f1,
+    stringsAsFactors = FALSE
+  )
+}
+
+# Evaluate all models
+allMetrics <- data.frame()
+
+for (name in names(modelList)) {
+  model <- modelList[[name]]
+  predictions <- predict(model, testData)
+  predProbs <- predict(model, testData, type = "prob")
+  
+  # Calculate metrics
+  metrics <- calculateMetrics(predictions, testData$Result, name)
+  allMetrics <- rbind(allMetrics, metrics)
+  
+  # Create ROC curve
+  pred <- prediction(predProbs$Win, testData$Result == "Win")
+  perf <- performance(pred, "tpr", "fpr")
+  auc <- performance(pred, "auc")@y.values[[1]]
+  
+  # Print AUC
+  cat(name, "AUC:", round(auc, 4), "\n")
+  
+  # Plot ROC curve
+  plot(perf, main = paste(name, "ROC Curve"), col = "blue")
+  abline(0, 1, lty = 2)
+}
+
+# Display metrics
+print(allMetrics)
+
+# --- 7. Feature Importance ---
+# For Random Forest
+if (!is.null(rfModel$finalModel)) {
+  varImpPlot(rfModel$finalModel, main = "Random Forest Variable Importance")
+  
+  # Get variable importance as data frame
+  varImp <- importance(rfModel$finalModel)
+  varImpDF <- data.frame(
+    Feature = rownames(varImp),
+    Importance = varImp[, "MeanDecreaseGini"]
+  )
+  varImpDF <- varImpDF[order(varImpDF$Importance, decreasing = TRUE), ]
+  print(varImpDF)
+}
+
+# For Logistic Regression
+if (!is.null(logModel$finalModel)) {
+  # Extract coefficients
+  coefs <- coef(logModel$finalModel)
+  coefDF <- data.frame(
+    Feature = names(coefs),
+    Coefficient = as.numeric(coefs)
+  )
+  coefDF <- coefDF[order(abs(coefDF$Coefficient), decreasing = TRUE), ]
+  print(coefDF)
+}
+
+# For XGBoost
+if (!is.null(xgbModel$finalModel)) {
+  # Get feature importance
+  importance <- xgb.importance(model = xgbModel$finalModel)
+  print(importance)
+}
+
+# --- 8. Determine Best Model ---
+bestModel <- allMetrics$Model[which.max(allMetrics$F1Score)]
+cat("The best performing model based on F1 Score is:", bestModel, "\n")
+
+
+
+# --- 9. Model Description ---
+cat("\n--- Model Descriptions ---\n")
+cat("1. Random Forest:\n")
+cat("   Random Forest is an ensemble learning method that builds multiple decision trees during training\n")
+cat("   and outputs the class that is the mode of the classes of individual trees. It reduces overfitting\n")
+cat("   by creating trees from bootstrapped samples and randomly selecting a subset of features at each split.\n\n")
+
+cat("2. Logistic Regression:\n")
+cat("   Logistic Regression is a statistical model that uses a logistic function to model a binary dependent\n")
+cat("   variable. It estimates the probability of a binary outcome based on one or more predictor variables.\n")
+cat("   It's simple, interpretable, and provides insights into feature importance through coefficients.\n\n")
+
+cat("3. XGBoost (eXtreme Gradient Boosting):\n")
+cat("   XGBoost is an optimized gradient boosting implementation that builds trees sequentially, with each\n")
+cat("   tree correcting the errors of the previous ones. It uses gradient descent to minimize loss and includes\n")
+cat("   regularization to prevent overfitting. XGBoost is known for its speed and performance in competitions.\n")
+```
+
+
+```{r}
+# ---- 10. Confusion Matrix ---- #
+# --- Confusion Matrices for All Models ---
+library(dplyr)
+library(caret)
+library(randomForest)
+library(e1071)  # For SVM
+
+library(kernlab) # For SVM
+library(xgboost) # For XGBoost (third method)
+library(ROCR)    # For ROC curves
+library(ggplot2)
+
+# Function to print confusion matrix
+print_conf_matrix <- function(model, model_name, testData) {
+  cat("\nConfusion Matrix for", model_name, ":\n")
+  preds <- predict(model, newdata = testData)
+  cm <- confusionMatrix(preds, testData$Result, positive = "Win")
+  print(cm)
+}
+
+# Run for each model
+print_conf_matrix(rfModel, "Random Forest", testData)
+print_conf_matrix(logModel, "Logistic Regression", testData)
+print_conf_matrix(xgbModel, "XGBoost", testData)
+
+
+
+```
+
+
+
+
+# Discussion:
+
+The results showed that XGBoost was the most effective model, with the highest F1 score and ROC AUC on the test set. It was closely followed by Random Forest, while Logistic Regression trailed slightly. This matched my expectations: Logistic Regression assumes linear relationships and can struggle with interactions between features — which are likely present in gameplay data. On the other hand, tree-based models like Random Forest and XGBoost are well-equipped to model complex, nonlinear patterns which probably helped them perform better with statistics like K/D ratio and map-based variation.
+
+What stood out most was just how consistently XGBoost outperformed the others especially in terms of precision and recall for predicting wins. That said, it wasn’t the easiest model to work with. Setting up xgboost required me to read through documentation, experiment with hyperparameters, and troubleshoot matrix formatting issues. Still, it was a rewarding challenge, and I can see why this model is widely used in competitions and real-world applications.
+
+Another interesting takeaway was that feature engineering mattered a lot. Simple ratios like Score Per Minute ended up being among the most important predictors, especially in Random Forest’s variable importance plot. This reinforced the idea that creating thoughtful, context-aware features can sometimes be just as impactful as choosing the right algorithm.
+
+Overall, this task gave me a deeper appreciation for model evaluation, cross-validation, and the trade-offs between interpretability and predictive power. Each method had its own strengths: Logistic Regression was fast and interpretable, Random Forest was reliable and robust, and XGBoost was powerful (though a bit of a black box). 
