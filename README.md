@@ -121,9 +121,7 @@ Maps like Miami or Echelon rarely get selected.
 
 This plot shows the same win probability but uses a color gradient for better visual impact. Darker shades indicate higher popularity.
 
-r
-Copy
-Edit
+
 scale_fill_gradient(low = "lightblue", high = "darkblue")
 Why use this version?
 It’s visually appealing and draws quick attention to dominant maps.
@@ -131,6 +129,7 @@ It’s visually appealing and draws quick attention to dominant maps.
 
 
 
+<img width="1005" alt="Screenshot 2025-05-30 at 5 29 48 PM" src="https://github.com/user-attachments/assets/5f2a0328-ed7e-4978-ac71-04c6237cc9b4" />
 
 
 
@@ -142,9 +141,7 @@ Cyan: Won by actual vote.
 
 Pink: Won by tie (Map1 automatically wins).
 
-r
-Copy
-Edit
+
 geom_bar(aes(fill = WinType), stat = "identity", position = "stack")
 Insight:
 
