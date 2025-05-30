@@ -104,3 +104,52 @@ Maps like Nuketown '84, Crossroads Strike, and Raid are most likely to win.
 Maps like Miami or Echelon rarely get selected.
 
 
+
+
+
+
+
+
+
+
+
+<img width="973" alt="Screenshot 2025-05-30 at 5 29 38 PM" src="https://github.com/user-attachments/assets/7bcb0839-0998-4cb4-9117-1abadd2d71a6" />
+
+
+
+🌈 Heatmap-Style Bar Plot with Gradient
+
+This plot shows the same win probability but uses a color gradient for better visual impact. Darker shades indicate higher popularity.
+
+r
+Copy
+Edit
+scale_fill_gradient(low = "lightblue", high = "darkblue")
+Why use this version?
+It’s visually appealing and draws quick attention to dominant maps.
+
+
+
+
+
+
+
+🪄 Split by Win Type (Votes vs. Ties)
+
+We break down how each map won:
+
+Cyan: Won by actual vote.
+
+Pink: Won by tie (Map1 automatically wins).
+
+r
+Copy
+Edit
+geom_bar(aes(fill = WinType), stat = "identity", position = "stack")
+Insight:
+
+Maps like Nuketown win mostly by actual votes.
+
+Some lower-tier maps only win when there’s a tie
+
+
