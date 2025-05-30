@@ -36,7 +36,15 @@ Without this step, small typos would fragment the data:
 
 "drivein" and "drive-in" would be treated as different maps.
 
+
+
+
 Charts and stats would be misleading or incomplete.
 
 By standardizing map names upfront, we ensure accurate filtering, counting, and visualization later in the pipeline.
+<img width="1073" alt="Screenshot 2025-05-30 at 5 27 17 PM" src="https://github.com/user-attachments/assets/5c0ee5a0-aa9a-4879-9e5a-1331aeb48ebf" />
+
+
+<img width="1081" alt="Screenshot 2025-05-30 at 5 29 04 PM" src="https://github.com/user-attachments/assets/16786ea7-dab7-4abc-ba91-ba03b08c9c81" />
+
 
