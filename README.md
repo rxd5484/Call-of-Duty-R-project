@@ -188,6 +188,87 @@ This visualization helps players identify which game mode offers the best XP-per
 
 
 
+<img width="885" alt="Screenshot 2025-05-30 at 5 30 21 PM" src="https://github.com/user-attachments/assets/3021bfcf-b836-4632-af91-3038d5efa699" />
+
+
+📦 Total XP Distribution by Game Type
+
+This boxplot illustrates how Total XP earned varies across different game modes. Each box represents the statistical distribution of XP outcomes for one game type.
+
+🔍 What It Shows
+X-axis: Game modes (Kill Confirmed, TDM, Hardpoint, Domination)
+
+Y-axis: Total XP earned per match
+
+Each box displays:
+
+Median (center line)
+
+Interquartile Range (IQR) (box)
+
+Whiskers (range excluding outliers)
+
+Outliers (individual dots beyond 1.5×IQR)
+
+💡 Key Insights
+🟩 Hardpoint shows the widest XP spread, with some of the highest outliers—great potential for XP farming.
+
+🟥 Domination has the highest median, indicating strong XP consistency.
+
+🟪 TDM and 🟦 Kill Confirmed tend to offer lower XP on average, with Kill Confirmed having the tightest (lowest) spread.
+
+🧠 Interpretation
+While all game modes can yield XP, players seeking both high consistency and ceiling might prefer Domination or Hardpoint. Kill Confirmed, while predictable, generally offers lower XP returns.
+
+
+
+
+
+
+
+
+
+
+
+![image](https://github.com/user-attachments/assets/e6258b4f-549f-476f-a3af-7e497a6a4aaa)
+
+
+
+📐 Predicted Total XP by Score and Game Type
+
+This plot visualizes model-predicted Total XP as a function of score, broken down by game mode. It shows how XP is expected to increase with performance (score), after controlling for game type.
+
+🔍 What It Shows
+X-axis: Score earned during a match
+
+Y-axis: Predicted Total XP (from a regression model)
+
+Colored lines show predicted XP gain curves for each game type:
+
+🟥 TDM
+
+🟩 Kill Confirmed
+
+🟦 Hardpoint
+
+🟪 Domination
+
+📊 Interpretation
+🟪 Domination leads in XP gain at every score level — it's the most XP-efficient mode overall.
+
+🟦 Hardpoint performs second-best, especially after mid-level scores.
+
+🟩 Kill Confirmed and 🟥 TDM yield less XP for the same score, especially at higher performance levels.
+
+The gap widens as score increases, emphasizing that mode choice matters more for high-performing players.
+
+🧠 Why This Matters
+This chart reveals not just correlations, but model-backed expected outcomes. It helps answer:
+
+“If I score the same in any mode, which one gives me the most XP?”
+
+The answer? Domination, hands down.
+
 
 
 
