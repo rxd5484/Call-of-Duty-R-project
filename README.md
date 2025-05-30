@@ -150,3 +150,50 @@ Maps like Nuketown win mostly by actual votes.
 Some lower-tier maps only win when there’s a tie
 
 
+<img width="984" alt="Screenshot 2025-05-30 at 5 30 14 PM" src="https://github.com/user-attachments/assets/9cb5211c-3a04-4353-a05f-6eff15a8902d" />
+
+
+📈 Score vs. XP by Game Type
+
+This scatter plot visualizes the relationship between Score and Total XP across different game modes using colored regression lines.
+
+🔍 What It Shows
+Each point represents a match played, plotted by:
+
+X-axis: Score earned in the match
+
+Y-axis: Total XP gained
+
+Colored trend lines indicate the linear relationship for each GameType:
+
+🟥 Domination (red)
+
+🟩 Hardpoint (green)
+
+🟦 Kill Confirmed (blue)
+
+🟪 TDM (purple)
+
+💡 Key Insights
+📈 Hardpoint has the steepest slope, meaning XP increases fastest with score—great for grinding.
+
+🎯 TDM and Kill Confirmed show lower XP return per point scored.
+
+🎯 Domination sits somewhere in between.
+
+🧠 Interpretation
+This visualization helps players identify which game mode offers the best XP-per-score payoff. Players aiming to level up quickly should favor Hardpoint based on this dataset.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
